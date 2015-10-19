@@ -24,13 +24,19 @@ df <- as.tbl(ToothGrowth)
 names(df) <- c("len","Supplement","Dose")
 df$Dose <- as.factor(df$Dose)
 
+df.sum <- df %>% group_by(Supplement, Dose) %>% 
+        summarise(n       = length(len), 
+                  meanlen = mean(len),
+                  sd      = sd(len),
+                  ci      = qt(0.975, length(len)-1)*sd(len)/sqrt(length(len)))
+
 ```
   
 ## Exploratory Data Analysis
-### A. Numeric Summary
+
 The following tables provide a basic summary of the data available. Notice the difference in means
 between the three dosage groups in table 2 and the smaller variance in the 2 mg group.  
-
+<br><br>
 
 ```{r, echo=FALSE}
 table1 <- df %>% summarise("n" = length(len), 
@@ -63,174 +69,237 @@ table3 <- df %>% group_by(Supplement) %>% summarise("n" = length(len),
 ```
 
 
-#### Table 1: Data Summary
 
 ```{r, echo=FALSE, results="asis"}
-print(xtable(table1,align="ccccccccc"), include.rownames=FALSE)  
+print(xtable(table1,align="ccccccccc"), include.rownames=FALSE, floating = FALSE)  
 ```
-
-#### Table 2: Summary grouped by dose [mg/day]
+<br><br>
+*Table 1: Summary*  
+<br><br>
 
 ```{r, echo=FALSE, results="asis"}
-print(xtable(table2,align="cccccccccc"), include.rownames=FALSE)  
+print(xtable(table2,align="cccccccccc"), include.rownames=FALSE, floating = FALSE)  
 ```
-
-#### Table 3: Summary grouped by Supplement (Orange Juice (OJ), Ascorbic Acid (VC))
-
+<br><br>
+*Table 2: Summary by Dose*  
+<br><br>
 ```{r, echo=FALSE, results="asis"}
-print(xtable(table3,align="cccccccccc"), include.rownames=FALSE)  
+print(xtable(table3,align="cccccccccc"), include.rownames=FALSE, floating = FALSE)  
+```
+<br><br>
+*Table 3: Summary by Supplement*   
+<br><br>
+
+Figure 1 gives a visual summary of the data and shows the effect on the average odontoblast 
+length in relation to the dose of vitamin C and the type of supplement given.
+Notice the overlapping confidence intervals in the second plot, suggesting that the type of 
+supplement chosen might not influence the average length.
+
+### Figure 1: Data Summary  
+
+```{r, echo=FALSE, fig.width=18, fig.height=8}
+box <- 
+  ggplot(df, aes(Dose, len)) +
+    geom_boxplot(aes(fill = Dose)) + 
+    facet_grid(. ~ Supplement) +
+    scale_fill_brewer(palette="OrRd") + 
+    ggtitle(expression(atop("Individual Effect of Supplement and Dose on Length", 
+                   atop(italic("Orange Juice (OJ), Ascorbic Acid (VC)"), "")))) +
+    labs(x="Dosis", y="Length") +
+    theme(plot.title = element_text(size = 28), axis.title = element_text(size = 20)) +
+    guides(fill=FALSE) +
+    stat_summary(fun.y=mean, geom="point", shape=5, size=2) +
+    theme_bw() 
+    
+
+
+
+bar <- 
+  ggplot(df.sum, aes(x=Dose, y=meanlen, fill=Supplement)) + 
+        geom_bar(position=position_dodge(), stat="identity", size=.3, color = "black") +  
+        scale_fill_brewer(palette="Paired", name="Supplement", 
+                          breaks=c("OJ", "VC"),
+                          labels=c("Orange juice", "Ascorbic acid")) +
+        geom_errorbar(aes(ymin=meanlen-df.sum$ci, ymax=meanlen+df.sum$ci),
+                     width=.2,                    
+                     position=position_dodge(.9)) + 
+        xlab("Dose (mg)") +
+        ylab("Average Length") +
+        ggtitle(expression(atop("Dose and Supplement affect Odontoblast length", 
+                   atop(italic("Average Length and Confidence Intervals"), "")))) +
+        theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) +
+        theme_bw()
+
+grid.arrange(box,bar, ncol = 2)
 ```
 
 <br><br>
-<br><br>
 
-### B. Distribution
-
-The following graphs show that the sample of odontoblast length is approximately normaly distributed;
+The following graphs (Figure 2) show that the sample of odontoblast length is approximately normaly distributed;
 the quantile-quantile plot lines appear roughly linear. The density curves visualize the 
 difference in mean length and distribution between the three dosage groups. Visual
 impression suggests three independent groups with distinct but overlapping distributions.  
 <br><br>
 
-```{r,echo=FALSE, fig.width=16,fig.height=16}
+### Figure 2: Distribution
+```{r,echo=FALSE, fig.width=16,fig.height=8}
 
 df.mean <- df %>% group_by(Dose) %>% summarise(mean = mean(len))
 
 DensCurv <- 
   ggplot(df, aes(len, fill = Dose)) +
     geom_density(alpha=.3) + 
-    scale_fill_brewer(palette="Set1") +
-    labs(title="Density Curves by Dosage") + 
+    scale_fill_brewer(palette="OrRd") +
+    ggtitle(expression(atop("Density Ditribution", 
+                   atop(italic("Grouped by Dose"), "")))) +
     labs(x="Length", y="Density") +
     theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) +
     geom_vline(data=df.mean, aes(xintercept=mean,  colour=Dose),
         linetype="dashed", size=1) +
-    scale_colour_brewer(palette="Set1") +
+    scale_colour_brewer(palette="OrRd") +
     annotate("text", label = "Mean", x = 13, y = 0.13, size = 5, color="darkgrey") +
     annotate("text", label = "Mean", x = 22, y = 0.13, size = 5, color="darkgrey") +
-    annotate("text", label = "Mean", x = 28, y = 0.13, size = 5, color="darkgrey") 
+    annotate("text", label = "Mean", x = 28, y = 0.13, size = 5, color="darkgrey") +
+    theme_bw()
 
 qq <- 
   ggplot(df, aes(sample = len, color = Dose)) + 
-    stat_qq(geom="point",size=4) + 
-    scale_colour_brewer(palette="Set1") + 
-    labs(title="QQ-Plot of Tooth Length") + 
+    stat_qq(geom="point", size=4) + 
+    scale_colour_brewer(palette="OrRd") + 
+    ggtitle(expression(atop("Quantile-Quantile Plot", 
+                   atop(italic("Grouped by Dose"), "")))) +
     labs(x="Theoretical Quantiles", y="Sample Quantiles") +
-    theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) 
-
-box <- 
-  ggplot(df, aes(Dose, len)) +
-    geom_boxplot(aes(fill = Dose)) + 
-    facet_grid(. ~ Supplement) +
-    scale_fill_brewer(palette="Set1") + 
-    labs(title="Boxplot of Length grouped by Dosage and Supplement") + 
-    labs(x="Dosis", y="Length") +
     theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) +
-    guides(fill=FALSE) +
-    stat_summary(fun.y=mean, geom="point", shape=5, size=4)
+    theme_bw()
+
   
-grid.arrange(qq,box,DensCurv, ncol = 2, 
-             layout_matrix = cbind(c(1,3), c(2,3)))
+grid.arrange(qq,DensCurv, ncol = 2)
 
 ```
+<br><br>
 <br><br>
 
 ## Statistical Analysis  
 To test whether the observed differences in group means and distribution allow us to infer a
 correlation in vitamin C dosis and odontoblast length in the general guinea pig populaiton,
-a two sided, one sample t-test of the difference of means between the different groups was 
+a two sided, two sample t-test of the difference of means between the different groups was 
 performed. As can be seen from table 4, a higher dose of vitamin C correlates significantly
 with increased odontoblast length. As could be expected, the confidence intervals show the 
 strongest effect in the comparison of the 0.5mg and 2mg groups. Yet the 0.5mg increase 
 between the 0.5mg and 1mg groups shows a stronger response than the 1mg increase 
-between the 1mg and 2mg groups, suggesting a non-linear relation. 
-These results have p-values smaller than 0.001.  
-The form of supplement averaged over all dosages correlates to a smaller degree with the
-observed odontoblast length (CI 1.4 - 6).
+between the 1mg and 2mg groups, suggesting a non-linear, bounded relationship. 
+These results have corresponding p-values smaller than 0.001.  
+The type of supplement used (Table 5) has no statistical significant effect on average 
+odondoblast length. Tables 6 and 7 show the average length increases by incremental dose
+for either supllement alone.
 
 
-\pagebreak
+<br><br>
 
-#### Table 4: T-test and 95% confidence intervals, grouped by dosage 
+<br><br>
 ```{r, echo=FALSE, results="asis"}
-group0.5 <- df %>% filter(Dose == 0.5) 
-group1   <- df %>% filter(Dose == 1) 
-group2    <- df %>% filter(Dose == 2) 
 
-p <- rbind(
-        t.test(group2$len-group0.5$len)$p.value,
-        t.test(group2$len-group1$len)$p.value,
-        t.test(group1$len-group0.5$len)$p.value)
-
-ci <- round(rbind(
-        t.test(group2$len-group0.5$len)$conf.int,
-        t.test(group2$len-group1$len)$conf.int,
-        t.test(group1$len-group0.5$len)$conf.int),2)
-
-ma <- cbind(ci,round(p,9))
-for(i in 1:3) {
-        ifelse (as.numeric(ma[i,3]) < 0.001,ma[i,3] <- "< 0.001",ma[i,3])
+## Funciton: t-test to result matrix:
+testdf <- function(x) {
+        p <- rbind(
+                with(x, t.test(len[Dose == 2], len[Dose == 0.5])$p.value),
+                with(x, t.test(len[Dose == 2], len[Dose == 1])$p.value),
+                with(x, t.test(len[Dose == 1], len[Dose == 0.5])$p.value))
+        
+        ci <- round(rbind(
+                with(x, t.test(len[Dose == 2], len[Dose == 0.5])$conf.int),
+                with(x, t.test(len[Dose == 2], len[Dose == 1])$conf.int),
+                with(x, t.test(len[Dose == 1], len[Dose == 0.5])$conf.int)),2)
+        
+        ma <- as.data.frame(cbind(ci,round(p,9)))
+        for(i in 1:3) {
+                ifelse (as.numeric(ma[i,3]) < 0.001,ma[i,3] <- "< 0.001", ma[i,3] <-substr(ma[i,3],1,5))
+        }
+        rownames(ma) <- c("2 mg vs 0.5 mg","2 mg vs 1 mg","1 mg vs 0.5 mg")
+        colnames(ma) <- c("95% CI lower","95% CI upper","p-value")
+        
+        return(ma)
 }
-rownames(ma) <- c("2 mg vs 0.5 mg","2 mg vs 1 mg","1 mg vs 0.5 mg")
-colnames(ma) <- c("95% CI lower","95% CI upper","p-value")
 
-print(xtable(ma,align="lccc"), include.rownames=TRUE)
+print(xtable(testdf(df),align="lccc"), 
+                        include.rownames=TRUE, floating = FALSE)
 
 ```
- 
+<br><br>
+*Table 4: T-test and Confidence Intervals by Dose Groups*   
+<br><br>
 
-#### Table 5: T-test and 95% confidence intervals, grouped by supplement
 ```{r, echo=FALSE, results="asis"}
-oj <- df %>% filter(Supplement == "OJ")
-vc <- df %>% filter(Supplement == "VC")
 
-p2  <- round(t.test(oj$len-vc$len)$p.value,3)        
-ci2 <- round(t.test(oj$len-vc$len)$conf.int,3)
+p2  <- round(with(df, t.test(len ~ Supplement)$p.value),3)        
+ci2 <- round(with(df, t.test(len ~ Supplement)$conf.int),3)
 ma2 <- matrix(c(ci2,p2), ,nrow =1)
 colnames(ma2) <- c("95% CI lower","95% CI upper","p-value")
 rownames(ma2) <- "Orange Juice vs Ascorbic Acid"
 
-print(xtable(ma2,align ="lccc",digits = 3), include.rownames=TRUE)
+print(xtable(ma2,align ="lccc",digits = 3, include.rownames=TRUE), floating = FALSE)
 ````
-
 <br><br>
+*Table 5: T-test and Confidence Intervals by Supplement Type*   
+<br><br>
+
+
+```{r, echo=FALSE, results="asis"}
+
+oj <- df %>% filter(Supplement == "OJ")
+print(xtable(testdf(oj),align ="lccc",digits = 3, include.rownames=TRUE), floating = FALSE)
+````
+<br><br>
+*Table 6: T-test and Confidence Intervals of Orange Juice by Dose Groups*   
+<br><br>
+
+
+```{r, echo=FALSE, results="asis"}
+
+vc <- df %>% filter(Supplement == "VC")
+print(xtable(testdf(vc), align ="lccc",digits = 3, include.rownames=TRUE), floating = FALSE)
+````
+<br><br>
+*Table 7: T-test and Confidence Intervals of Ascorbic Acid by Dose Groups*   
 <br><br>
 
 ## Assumptions
 The analysis presented here is based on severeal assumptions:
 
-1. The observations are independend and from the same population  
-2. The distribution of this population approximates the normal distribution  
-3. The distribustion of the sample approximates the normal or t distribution  
+1. The observations are independend and from the same population
+2. The distribution of this population approximates the normal distribution
+3. The distribustion of the sample approximates the normal or t distribution
 
-As can be seen from the density curves, especially point 3 for the 1mg dosis group can
+As can be seen from the density curves, especially point 3 for the 1mg dosis group could
 be contested.  
 
 ## Conclusion
-1. Each incremental step in vitamin C dosage 
+1. Each incremental step in vitamin C dosage
 correlates significantly with an increase in odontoblast length
-2. Orange juice as supplement averaged over all dosages correlates positively with the
-observed odontoblast length.  
+2. The supplement type has no influence on average odontoblast length
 
 <br><br>
 
 ## Appendix - R Code
 ```{r, eval=FALSE,echo=TRUE}
-## Loading relevant packages
+## Loading and formating data and packages
 library(datasets); library(ggplot2); library(dplyr)
 library(xtable); library(RColorBrewer); library(gridExtra)
-
-## Naming and arragning the data set
 options(xtable.comment = FALSE)
+
 data(ToothGrowth)
 df <- as.tbl(ToothGrowth)
 names(df) <- c("len","Supplement","Dose")
 df$Dose <- as.factor(df$Dose)
 
-## ----------------------------------------------------------------------------------##
-## Creating the information for numerical summary tables
+# Creates a statistical summary data frame for plotting of CI error bars
+df.sum <- df %>% group_by(Supplement, Dose) %>% 
+        summarise(n       = length(len), 
+                  meanlen = mean(len),
+                  sd      = sd(len),
+                  ci      = qt(0.975, length(len)-1)*sd(len)/sqrt(length(len)))
 
-## for all observations
+# Summarises the data frame for table creation
 table1 <- df %>% summarise("n" = length(len), 
                            "Minimum" = min(len),  
                            "1st Quantile" = quantile(len,0.25),
@@ -240,7 +309,7 @@ table1 <- df %>% summarise("n" = length(len),
                            "Maximum" = max(len),
                            "Standard Deviation" = sd(len))
 
-## for observations grouped by dosage
+
 table2 <- df %>% group_by(Dose) %>% summarise("n" = length(len), 
                                     "Minimum" = min(len),  
                                     "1st Quantile" = quantile(len,0.25),
@@ -250,7 +319,6 @@ table2 <- df %>% group_by(Dose) %>% summarise("n" = length(len),
                                     "Maximum" = max(len),
                                     "Standard Deviation" = sd(len))
 
-## for observations grouped by supplement type
 table3 <- df %>% group_by(Supplement) %>% summarise("n" = length(len), 
                                     "Minimum" = min(len),  
                                     "1st Quantile" = quantile(len,0.25),
@@ -260,103 +328,124 @@ table3 <- df %>% group_by(Supplement) %>% summarise("n" = length(len),
                                     "Maximum" = max(len),
                                     "Standard Deviation" = sd(len))
 
-## Creating, formating and printing te tables
-print(xtable(table1,align="ccccccccc"), include.rownames=FALSE)  
-print(xtable(table2,align="cccccccccc"), include.rownames=FALSE)  
-print(xtable(table3,align="cccccccccc"), include.rownames=FALSE)  
+# Creates and prints the summary tables
+print(xtable(table1,align="ccccccccc"), include.rownames=FALSE, floating = FALSE)  
+print(xtable(table2,align="cccccccccc"), include.rownames=FALSE, floating = FALSE)  
+print(xtable(table3,align="cccccccccc"), include.rownames=FALSE, floating = FALSE)  
 
-## ----------------------------------------------------------------------------------##
-## Plots
-## Calculating the grouped means
-df.mean <- df %>% group_by(Dose) %>% summarise(mean = mean(len))
-
-## Overlaying density curves
-DensCurv <- 
-  ggplot(df, aes(len, fill = Dose)) +
-    geom_density(alpha=.3) + 
-    scale_fill_brewer(palette="Set1") +
-    labs(title="Density Curves by Dosage") + 
-    labs(x="Length", y="Density") +
-    theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) +
-    geom_vline(data=df.mean, aes(xintercept=mean,  colour=Dose),
-        linetype="dashed", size=1) +
-    scale_colour_brewer(palette="Set1") +
-    annotate("text", label = "Mean", x = 13, y = 0.13, size = 5, color="darkgrey") +
-    annotate("text", label = "Mean", x = 22, y = 0.13, size = 5, color="darkgrey") +
-    annotate("text", label = "Mean", x = 28, y = 0.13, size = 5, color="darkgrey") 
-
-## Quantile-quantile plot, grouped by dosage
-qq <- 
-  ggplot(df, aes(sample = len, color = Dose)) + 
-    stat_qq(geom="point",size=4) + 
-    scale_colour_brewer(palette="Set1") + 
-    labs(title="QQ-Plot of Tooth Length") + 
-    labs(x="Theoretical Quantiles", y="Sample Quantiles") +
-    theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) 
-
-## boxplot grouped by dosage and supplement type
+# Creates the boxplot
 box <- 
   ggplot(df, aes(Dose, len)) +
     geom_boxplot(aes(fill = Dose)) + 
     facet_grid(. ~ Supplement) +
-    scale_fill_brewer(palette="Set1") + 
-    labs(title="Boxplot of Length grouped by Dosage and Supplement") + 
+    scale_fill_brewer(palette="OrRd") + 
+    ggtitle(expression(atop("Individual Effect of Supplement and Dose on Length", 
+                   atop(italic("Orange Juice (OJ), Ascorbic Acid (VC)"), "")))) +
     labs(x="Dosis", y="Length") +
-    theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) +
+    theme(plot.title = element_text(size = 28), axis.title = element_text(size = 20)) +
     guides(fill=FALSE) +
-    stat_summary(fun.y=mean, geom="point", shape=5, size=4)
-  
-## printing 3 plots on one canvas
-grid.arrange(qq,box,DensCurv, ncol = 2, 
-             layout_matrix = cbind(c(1,3), c(2,3)))
+    stat_summary(fun.y=mean, geom="point", shape=5, size=2) +
+    theme_bw() 
 
-## ----------------------------------------------------------------------------------##
-## Statistical calculations
+# Creates the bar plot
+bar <- 
+  ggplot(df.sum, aes(x=Dose, y=meanlen, fill=Supplement)) + 
+        geom_bar(position=position_dodge(), stat="identity", size=.3, color = "black") +  
+        scale_fill_brewer(palette="Paired", name="Supplement", 
+                          breaks=c("OJ", "VC"),
+                          labels=c("Orange juice", "Ascorbic acid")) +
+        geom_errorbar(aes(ymin=meanlen-df.sum$ci, ymax=meanlen+df.sum$ci),
+                     width=.2,                    
+                     position=position_dodge(.9)) + 
+        xlab("Dose (mg)") +
+        ylab("Average Length") +
+        ggtitle(expression(atop("Dose and Supplement affect Odontoblast length", 
+                   atop(italic("Average Length and Confidence Intervals"), "")))) +
+        theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) +
+        theme_bw()
 
-## Creating 3 groups by dosage
-group0.5 <- df %>% filter(Dose == 0.5) 
-group1   <- df %>% filter(Dose == 1) 
-group2    <- df %>% filter(Dose == 2) 
+# Prints box and bar plot on one canvas
+grid.arrange(box,bar, ncol = 2)
 
-## Calculating and combining the CIs and p-values for 3 groups in one named matrix
-p <- rbind(
-        t.test(group2$len-group0.5$len)$p.value,
-        t.test(group2$len-group1$len)$p.value,
-        t.test(group1$len-group0.5$len)$p.value)
+# Creates grouped summary data frame for plotting means
+df.mean <- df %>% group_by(Dose) %>% summarise(mean = mean(len))
 
-ci <- round(rbind(
-        t.test(group2$len-group0.5$len)$conf.int,
-        t.test(group2$len-group1$len)$conf.int,
-        t.test(group1$len-group0.5$len)$conf.int),2)
+# Creates overlapping densitiy curves
+DensCurv <- 
+  ggplot(df, aes(len, fill = Dose)) +
+    geom_density(alpha=.3) + 
+    scale_fill_brewer(palette="OrRd") +
+    ggtitle(expression(atop("Density Ditribution", 
+                   atop(italic("Grouped by Dose"), "")))) +
+    labs(x="Length", y="Density") +
+    theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) +
+    geom_vline(data=df.mean, aes(xintercept=mean,  colour=Dose),
+        linetype="dashed", size=1) +
+    scale_colour_brewer(palette="OrRd") +
+    annotate("text", label = "Mean", x = 13, y = 0.13, size = 5, color="darkgrey") +
+    annotate("text", label = "Mean", x = 22, y = 0.13, size = 5, color="darkgrey") +
+    annotate("text", label = "Mean", x = 28, y = 0.13, size = 5, color="darkgrey") +
+    theme_bw()
 
-ma <- cbind(ci,round(p,9))
+# Creates the qq-plot
+qq <- 
+  ggplot(df, aes(sample = len, color = Dose)) + 
+    stat_qq(geom="point", size=4) + 
+    scale_colour_brewer(palette="OrRd") + 
+    ggtitle(expression(atop("Quantile-Quantile Plot", 
+                   atop(italic("Grouped by Dose"), "")))) +
+    labs(x="Theoretical Quantiles", y="Sample Quantiles") +
+    theme(plot.title = element_text(size = 22), axis.title = element_text(size = 18)) +
+    theme_bw()
 
-## substituting p-value with <0.001 if smaller than that
-for(i in 1:3) {
-        ifelse (as.numeric(ma[i,3]) < 0.001,ma[i,3] <- "< 0.001",ma[i,3])
+# Prints density and qq plot on one canvas
+grid.arrange(qq,DensCurv, ncol = 2)
+
+# Defines function, input: data frame, output named dataframe with p-values and CIs
+testdf <- function(x) {
+        p <- rbind(
+                with(x, t.test(len[Dose == 2], len[Dose == 0.5])$p.value),
+                with(x, t.test(len[Dose == 2], len[Dose == 1])$p.value),
+                with(x, t.test(len[Dose == 1], len[Dose == 0.5])$p.value))
+        
+        ci <- round(rbind(
+                with(x, t.test(len[Dose == 2], len[Dose == 0.5])$conf.int),
+                with(x, t.test(len[Dose == 2], len[Dose == 1])$conf.int),
+                with(x, t.test(len[Dose == 1], len[Dose == 0.5])$conf.int)),2)
+        
+        ma <- as.data.frame(cbind(ci,round(p,9)))
+        for(i in 1:3) {
+                ifelse (as.numeric(ma[i,3]) < 0.001,ma[i,3] <- "< 0.001", ma[i,3] <-substr(ma[i,3],1,5))
+        }
+        rownames(ma) <- c("2 mg vs 0.5 mg","2 mg vs 1 mg","1 mg vs 0.5 mg")
+        colnames(ma) <- c("95% CI lower","95% CI upper","p-value")
+        
+        return(ma)
 }
-rownames(ma) <- c("2mg vs 0.5mg","2mg vs 1mg","1mg vs 0.5mg")
-colnames(ma) <- c("CI lower","CI upper","p-value")
 
-## printing and formating the resulting table
-print(xtable(ma,align="lccc"), include.rownames=TRUE)
+# Prints and creates table 4
+print(xtable(testdf(df),align="lccc"), 
+                        include.rownames=TRUE, floating = FALSE)
 
-## Creating groups by supplement
-oj <- df %>% filter(Supplement == "OJ")
-vc <- df %>% filter(Supplement == "VC")
-
-## Calculating and combining the CIs and p-values for both groups in one named matrix
-p2  <- round(t.test(oj$len-vc$len)$p.value,3)        
-ci2 <- round(t.test(oj$len-vc$len)$conf.int,3)
+# Create table 5
+p2  <- round(with(df, t.test(len ~ Supplement)$p.value),3)        
+ci2 <- round(with(df, t.test(len ~ Supplement)$conf.int),3)
 ma2 <- matrix(c(ci2,p2), ,nrow =1)
-colnames(ma2) <- c("CI lower","CI upper","p-value")
+colnames(ma2) <- c("95% CI lower","95% CI upper","p-value")
 rownames(ma2) <- "Orange Juice vs Ascorbic Acid"
 
-## printing and formating the resulting table
-print(xtable(ma2,align ="lccc",digits = 3), include.rownames=TRUE)
-```
-<br><br>
+# Prints table 5
+print(xtable(ma2,align ="lccc",digits = 3, include.rownames=TRUE), floating = FALSE)
 
-#### Footnotes 
+# Creates Orange Juice data frame, calls defined function and prints table 6
+oj <- df %>% filter(Supplement == "OJ")
+print(xtable(testdf(oj),align ="lccc",digits = 3, include.rownames=TRUE), floating = FALSE)
+
+# Creates Ascorbic Acid data frame, calls defined function and prints table 7
+vc <- df %>% filter(Supplement == "VC")
+print(xtable(testdf(vc), align ="lccc",digits = 3, include.rownames=TRUE), floating = FALSE)
+```
+
+### Footnotes 
 
 1: [ToothGrowth - R Dataset](https://stat.ethz.ch/R-manual/R-patched/library/datasets/html/ToothGrowth.html)
